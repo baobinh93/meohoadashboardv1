@@ -19,9 +19,12 @@ const navigation = [
   { to: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: Package },
   //{ to: "/orders", label: "Đơn hàng", icon: ReceiptText },
-  { to: "/categories", label: "Danh mục & Phân loại", icon: Tags },
   //{ to: "/accounts", label: "Tài khoản & nhân viên", icon: UsersRound },
   // { to: "/settings", label: "Cài đặt cửa hàng", icon: Settings },
+];
+
+const adminNavigation = [
+  { to: "/categories", label: "Danh mục & Phân loại", icon: Tags },
 ];
 
 type SidebarProps = {
@@ -31,7 +34,12 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin, roleLoading } = useAuth();
+
+  const visibleNavigation = [
+    ...navigation,
+    ...(isAdmin && !roleLoading ? adminNavigation : []),
+  ];
 
   return (
     <>
@@ -54,7 +62,7 @@ export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
         className={`fixed inset-y-0 left-0 z-50 h-dvh w-[min(280px,80vw)]
           transition-transform duration-300 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          xl:sticky xl:top-0 xl:z-auto xl:h-screen xl:w-[250px]
+          xl:sticky xl:top-0 xl:z-auto xl:h-screen xl:w-62.5
           xl:shrink-0 xl:translate-x-0`}
       >
         {/* Sidebar */}
@@ -89,7 +97,7 @@ export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
 
           {/* Điều hướng */}
           <nav className="grid gap-1.5">
-            {navigation.map(({ to, label, icon: Icon }) => (
+            {visibleNavigation.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -113,13 +121,13 @@ export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
           {/* Tài khoản */}
           <div className="mt-auto border-t border-white/10 pt-5">
             <div className="flex items-center gap-3 px-1">
-              <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full bg-[#c92d35]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#c92d35]">
                 <UserRound size={15} strokeWidth={2} />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-bold leading-tight text-white">
-                  Quản Trị Viên
+                  {isAdmin ? "Admin" : "Nhân viên"}
                 </div>
 
                 <div
@@ -150,7 +158,7 @@ export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
           aria-controls="admin-sidebar"
           aria-expanded={mobileOpen}
           onClick={mobileOpen ? onClose : onOpen}
-          className="absolute left-full top-1/2 z-[60] flex h-12 w-7
+          className="absolute left-full top-1/2 z-60 flex h-12 w-7
             -translate-y-1/2 items-center justify-center
             rounded-r-xl border border-l-0 border-white/10
             bg-[#211f1e] text-stone-200 shadow-md

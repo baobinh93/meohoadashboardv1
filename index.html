@@ -2,25 +2,37 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Apple Mobile Web App -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Mèo Hoa Admin" />
-
-    <!-- Theme & viewport -->
     <meta name="theme-color" content="#211f1e" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
 
-    <!-- Apple Touch Icon -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Mèo Hoa Admin</title>
+
+    <script>
+      (function () {
+        var redirect = window.location.search;
+        if (redirect.startsWith("?/")) {
+          var decoded = redirect.slice(2).replace(/~and~/g, "&");
+          window.history.replaceState(
+            null,
+            "",
+            window.location.pathname.replace(/\/$/, "") +
+              "/" +
+              decoded +
+              window.location.hash,
+          );
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

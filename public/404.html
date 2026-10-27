@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Đang chuyển hướng...</title>
+    <script>
+      var base = "/meohoadashboardv1/";
+      var path = window.location.pathname;
+
+      if (path.startsWith(base)) {
+        var route = path.slice(base.length);
+        var query = window.location.search;
+        var hash = window.location.hash;
+
+        window.location.replace(
+          base + "?/" + route.replace(/&/g, "~and~") + query + hash,
+        );
+      } else {
+        window.location.replace(base);
+      }
+    </script>
+  </head>
+  <body>
+    Đang chuyển hướng...
+  </body>
+</html>

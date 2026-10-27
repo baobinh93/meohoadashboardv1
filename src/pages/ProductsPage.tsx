@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/layout/ToastProvider";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +53,8 @@ type SortOption =
   | "name-desc";
 
 export function ProductsPage() {
+  const { isAdmin } = useAuth();
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -217,6 +220,11 @@ export function ProductsPage() {
     setSelectedIds([]);
   }, [page, pageSize]);
 
+  // Staff không sử dụng chức năng chọn/xóa hàng loạt.
+  useEffect(() => {
+    if (!isAdmin) setSelectedIds([]);
+  }, [isAdmin]);
+
   const allPageSelected =
     pageProducts.length > 0 &&
     pageProducts.every((product) => selectedIds.includes(product.id));
@@ -309,6 +317,8 @@ export function ProductsPage() {
   }
 
   function handleDeleteSelected() {
+    if (!isAdmin) return;
+
     const selectedProducts = products.filter((product) =>
       selectedIds.includes(product.id),
     );
@@ -320,6 +330,11 @@ export function ProductsPage() {
   }
 
   async function confirmDeleteSelected() {
+    if (!isAdmin) {
+      setDeleteDialogOpen(false);
+      return;
+    }
+
     const selectedProducts = products.filter((product) =>
       selectedIds.includes(product.id),
     );
@@ -509,9 +524,9 @@ export function ProductsPage() {
           categories={categories}
           colors={colors}
           badges={badges}
-          selectedIds={selectedIds}
-          onToggle={toggleProduct}
-          onTogglePage={toggleCurrentPage}
+          selectedIds={isAdmin ? selectedIds : []}
+          onToggle={isAdmin ? toggleProduct : () => {}}
+          onTogglePage={isAdmin ? toggleCurrentPage : () => {}}
           onEdit={setEditingProduct}
           onPublish={(product) => void handlePublish(product.id)}
           loading={loading || productsLoading}
@@ -635,7 +650,7 @@ export function ProductsPage() {
         </div>
 
         {/* Tổng số sản phẩm đã chọn */}
-        {selectedIds.length > 0 && (
+        {isAdmin && selectedIds.length > 0 && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5">
             <span className="text-xs text-red-800">
               Đã chọn {selectedIds.length} sản phẩm
@@ -749,7 +764,7 @@ export function ProductsPage() {
         </div>
       )}
 
-      {deleteDialogOpen && (
+      {isAdmin && deleteDialogOpen && (
         <div
           className="fixed inset-0 z-[90] grid place-items-center bg-stone-950/40 p-4"
           role="presentation"
