@@ -1,23 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import {
-  ImagePlus,
-  Star,
-  Trash2,
-  X,
-  Save,
-  UploadCloud,
-  RefreshCw,
-  ChevronDown,
-} from "lucide-react";
+import { ImagePlus, Star, Trash2, X, Save, ChevronDown } from "lucide-react";
 import type { Product, ProductImage } from "../../../types/database";
 import type { Badge } from "../../../services/rpcContract";
-import { useToast } from "../../../components/layout/ToastProvider";
 
 type Option = {
   id: string;
   name: string;
   is_active?: boolean;
   hex_code?: string | null;
+};
+export type ProductImageDraftChanges = {
+  newFiles: File[];
+  deletedImageIds: string[];
+  primaryImageId: string | null;
+  primaryNewFileIndex: number | null;
 };
 export type ProductEditValues = {
   name: string;
@@ -35,11 +31,11 @@ type ProductEditModalProps = {
   colors: Option[];
   badges: Badge[];
   onClose: () => void;
-  onSave: (productId: string, values: ProductEditValues) => Promise<void>;
-  onAddImages: (productId: string, files: File[]) => Promise<void>;
-  onDeleteImage: (productId: string, imageId: string) => Promise<void>;
-  onSetPrimaryImage: (productId: string, imageId: string) => Promise<void>;
-  onRefreshImages: (productId: string) => Promise<ProductImage[]>;
+  onSave: (
+    productId: string,
+    values: ProductEditValues,
+    imageChanges: ProductImageDraftChanges,
+  ) => Promise<void>;
 };
 const inputClass =
   "mt-1 w-full rounded-xl border border-[#e9e0d7] bg-white px-3 py-2.5 text-base text-stone-800 outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-50";
@@ -51,12 +47,7 @@ export default function ProductEditModal({
   badges,
   onClose,
   onSave,
-  onAddImages,
-  onDeleteImage,
-  onSetPrimaryImage,
-  onRefreshImages,
 }: ProductEditModalProps) {
-  const toast = useToast();
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.price ?? ""));
   const [originalPrice, setOriginalPrice] = useState(
@@ -81,11 +72,19 @@ export default function ProductEditModal({
   const [statusOpen, setStatusOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const [images, setImages] = useState<ProductImage[]>(product.images ?? []);
+  const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
+  const [primaryImageId, setPrimaryImageId] = useState<string | null>(
+    product.images?.find((image) => image.is_primary)?.id ??
+      product.images?.[0]?.id ??
+      null,
+  );
+  const [primaryNewFileIndex, setPrimaryNewFileIndex] = useState<number | null>(
+    null,
+  );
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [imageBusy, setImageBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const dirty =
     name !== product.name ||
     price !== String(product.price ?? "") ||
@@ -96,7 +95,7 @@ export default function ProductEditModal({
     colorId !== product.color_id ||
     badgeId !== (product.badge_id ?? "") ||
     status !== product.status;
-  const canClose = !saving && !imageBusy;
+  const canClose = !saving;
   const activeBadges = useMemo(
     () => badges.filter((b) => b.is_active || b.id === badgeId),
     [badges, badgeId],
@@ -118,6 +117,15 @@ export default function ProductEditModal({
 
   useEffect(() => {
     setImages(product.images ?? []);
+    setDeletedImageIds([]);
+    setPrimaryImageId(
+      product.images?.find((image) => image.is_primary)?.id ??
+        product.images?.[0]?.id ??
+        null,
+    );
+    setPrimaryNewFileIndex(null);
+    setNewFiles([]);
+    setPreviewUrls([]);
   }, [product.id, product.images]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -132,65 +140,110 @@ export default function ProductEditModal({
   function close() {
     if (!canClose) return;
     if (
-      (dirty || newFiles.length > 0) &&
+      (dirty ||
+        newFiles.length > 0 ||
+        deletedImageIds.length > 0 ||
+        primaryImageId !==
+          (product.images?.find((image) => image.is_primary)?.id ??
+            product.images?.[0]?.id ??
+            null)) &&
       !window.confirm("Bạn có thay đổi chưa lưu. Đóng mà không lưu?")
     )
       return;
     onClose();
   }
-  async function runImageAction(action: () => Promise<void>, success: string) {
+  function addImages() {
     setError("");
-    setNotice("");
-    setImageBusy(true);
-    try {
-      await action();
-      setNotice("");
-      toast.success(success);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Không thể cập nhật hình ảnh.");
-    } finally {
-      setImageBusy(false);
-    }
-  }
-  async function addImages() {
-    const valid = newFiles.filter(
-      (f) =>
-        f.size <= 10 * 1024 * 1024 &&
-        ["image/jpeg", "image/png", "image/webp"].includes(f.type),
+    const selected = Array.from(
+      (
+        document.getElementById(
+          "product-edit-images",
+        ) as HTMLInputElement | null
+      )?.files ?? [],
     );
-    if (valid.length !== newFiles.length) {
-      setError("Chỉ hỗ trợ JPG, PNG, WEBP tối đa 10MB/ảnh.");
+    const invalid = selected.find(
+      (file) =>
+        file.size > 10 * 1024 * 1024 ||
+        !["image/jpeg", "image/png", "image/webp"].includes(file.type),
+    );
+    if (invalid) {
+      setError(
+        `Ảnh không hợp lệ: ${invalid.name}. Chỉ hỗ trợ JPG, PNG, WEBP tối đa 10MB/ảnh.`,
+      );
       return;
     }
-    if (!valid.length) return;
-    await runImageAction(async () => {
-      await onAddImages(product.id, valid);
-      // Refresh parent-owned product data via page reload callback is not exposed; append placeholders only after service confirms.
-      setImages(await onRefreshImages(product.id));
-      setNewFiles([]);
-    }, "Đã thêm ảnh.");
-  }
-  async function removeImage(image: ProductImage) {
+    if (!selected.length) return;
+    const nextFiles = [...newFiles, ...selected];
+    const nextUrls = [
+      ...previewUrls,
+      ...selected.map((file) => URL.createObjectURL(file)),
+    ];
+    setNewFiles(nextFiles);
+    setPreviewUrls(nextUrls);
     if (
-      !window.confirm(
-        image.is_primary
-          ? "Đây là ảnh đại diện. Xóa ảnh này và để hệ thống xử lý ảnh đại diện thay thế?"
-          : "Xóa ảnh này khỏi sản phẩm?",
-      )
-    )
-      return;
-    await runImageAction(async () => {
-      await onDeleteImage(product.id, image.id);
-      setImages(await onRefreshImages(product.id));
-    }, "Đã xóa ảnh.");
+      primaryImageId === null &&
+      primaryNewFileIndex === null &&
+      images.length === 0
+    ) {
+      setPrimaryNewFileIndex(0);
+    }
+    const input = document.getElementById(
+      "product-edit-images",
+    ) as HTMLInputElement | null;
+    if (input) input.value = "";
   }
-  async function choosePrimary(image: ProductImage) {
-    if (image.is_primary) return;
-    await runImageAction(async () => {
-      await onSetPrimaryImage(product.id, image.id);
-      setImages(await onRefreshImages(product.id));
-    }, "Đã đổi ảnh đại diện.");
+
+  function removeImage(image: ProductImage) {
+    const remaining = images.filter((item) => item.id !== image.id);
+    setImages(remaining);
+    setDeletedImageIds((current) =>
+      current.includes(image.id) ? current : [...current, image.id],
+    );
+    if (primaryImageId === image.id) {
+      const fallback = remaining[0];
+      if (fallback) {
+        setPrimaryImageId(fallback.id);
+        setPrimaryNewFileIndex(null);
+      } else if (newFiles.length > 0) {
+        setPrimaryImageId(null);
+        setPrimaryNewFileIndex(0);
+      } else {
+        setPrimaryImageId(null);
+        setPrimaryNewFileIndex(null);
+      }
+    }
   }
+
+  function choosePrimary(image: ProductImage) {
+    setPrimaryImageId(image.id);
+    setPrimaryNewFileIndex(null);
+  }
+
+  function removeNewFile(index: number) {
+    const url = previewUrls[index];
+    if (url) URL.revokeObjectURL(url);
+    setNewFiles((current) => current.filter((_, i) => i !== index));
+    setPreviewUrls((current) => current.filter((_, i) => i !== index));
+    if (primaryNewFileIndex === index) {
+      const fallback = images[0];
+      setPrimaryImageId(fallback?.id ?? null);
+      setPrimaryNewFileIndex(null);
+    } else if (primaryNewFileIndex !== null && primaryNewFileIndex > index) {
+      setPrimaryNewFileIndex(primaryNewFileIndex - 1);
+    }
+  }
+
+  const previewUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    previewUrlsRef.current = previewUrls;
+  }, [previewUrls]);
+  useEffect(
+    () => () => {
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -205,16 +258,32 @@ export default function ProductEditModal({
       return setError("Vui lòng chọn danh mục và màu sắc.");
     setSaving(true);
     try {
-      await onSave(product.id, {
-        name: name.trim(),
-        price: p,
-        original_price: op,
-        description: description.trim() || null,
-        category_id: categoryId,
-        color_id: colorId,
-        badge_id: badgeId || null,
-        status,
-      });
+      await onSave(
+        product.id,
+        {
+          name: name.trim(),
+          price: p,
+          original_price: op,
+          description: description.trim() || null,
+          category_id: categoryId,
+          color_id: colorId,
+          badge_id: badgeId || null,
+          status,
+        },
+        {
+          newFiles,
+          deletedImageIds,
+          primaryImageId:
+            primaryNewFileIndex === null &&
+            primaryImageId ===
+              (product.images?.find((image) => image.is_primary)?.id ??
+                product.images?.[0]?.id ??
+                null)
+              ? null
+              : primaryImageId,
+          primaryNewFileIndex,
+        },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không lưu được sản phẩm.");
     } finally {
@@ -223,7 +292,7 @@ export default function ProductEditModal({
   }
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-100 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -320,7 +389,7 @@ export default function ProductEditModal({
                   setBadgeOpen(false);
                   setStatusOpen(false);
                 }}
-                className={`${inputClass} flex min-h-[42px] items-center justify-between gap-3 text-left`}
+                className={`${inputClass} flex min-h-10.5 items-center justify-between gap-3 text-left`}
               >
                 <span className="truncate font-normal">
                   {selectedCategory?.name || "Chọn danh mục"}
@@ -470,7 +539,7 @@ export default function ProductEditModal({
                   setColorOpen(false);
                   setStatusOpen(false);
                 }}
-                className={`${inputClass} flex min-h-[42px] items-center justify-between gap-3 text-left`}
+                className={`${inputClass} flex min-h-10.5 items-center justify-between gap-3 text-left`}
               >
                 <span className="truncate font-normal">
                   {selectedBadge?.name || "Không gắn nhãn"}
@@ -537,7 +606,7 @@ export default function ProductEditModal({
                   setColorOpen(false);
                   setBadgeOpen(false);
                 }}
-                className={`${inputClass} flex min-h-[42px] items-center justify-between gap-3 text-left`}
+                className={`${inputClass} flex min-h-10.5 items-center justify-between gap-3 text-left`}
               >
                 <span className="truncate font-normal">
                   {status === "published"
@@ -606,23 +675,17 @@ export default function ProductEditModal({
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100">
                   <ImagePlus size={14} /> Thêm ảnh
                   <input
+                    id="product-edit-images"
                     type="file"
                     multiple
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
-                    disabled={imageBusy || saving}
-                    onChange={(e) => {
-                      setError("");
-                      setNewFiles((cur) => [
-                        ...cur,
-                        ...Array.from(e.target.files ?? []),
-                      ]);
-                      e.currentTarget.value = "";
-                    }}
+                    disabled={saving}
+                    onChange={() => addImages()}
                   />
                 </label>
               </div>
-              {images.length ? (
+              {images.length || newFiles.length ? (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {images.map((img) => (
                     <div
@@ -634,7 +697,52 @@ export default function ProductEditModal({
                         alt={img.alt || product.name}
                         className="h-full w-full object-cover"
                       />
-                      {img.is_primary && (
+                      {primaryImageId === img.id &&
+                        primaryNewFileIndex === null && (
+                          <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-1 text-center text-[10px] font-semibold text-white">
+                            Ảnh đại diện
+                          </span>
+                        )}
+                      <div className="absolute inset-x-1 top-1 flex justify-between gap-1">
+                        <button
+                          type="button"
+                          title="Đặt làm ảnh đại diện"
+                          disabled={saving || primaryImageId === img.id}
+                          onClick={() => choosePrimary(img)}
+                          className={`rounded-md p-1.5 text-white ${primaryImageId === img.id ? "bg-amber-500" : "bg-black/60 hover:bg-amber-500"}`}
+                        >
+                          <Star
+                            size={13}
+                            fill={
+                              primaryImageId === img.id
+                                ? "currentColor"
+                                : "none"
+                            }
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          title="Xóa ảnh"
+                          disabled={saving}
+                          onClick={() => removeImage(img)}
+                          className="rounded-md bg-black/60 p-1.5 text-white hover:bg-red-600"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {newFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="relative aspect-square overflow-hidden rounded-lg border-2 border-dashed border-red-300 bg-white"
+                    >
+                      <img
+                        src={previewUrls[index]}
+                        alt={file.name}
+                        className="h-full w-full object-cover"
+                      />
+                      {primaryNewFileIndex === index && (
                         <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-1 text-center text-[10px] font-semibold text-white">
                           Ảnh đại diện
                         </span>
@@ -643,20 +751,25 @@ export default function ProductEditModal({
                         <button
                           type="button"
                           title="Đặt làm ảnh đại diện"
-                          disabled={imageBusy || saving || img.is_primary}
-                          onClick={() => void choosePrimary(img)}
-                          className={`rounded-md p-1.5 text-white ${img.is_primary ? "bg-amber-500" : "bg-black/60 hover:bg-amber-500"}`}
+                          onClick={() => {
+                            setPrimaryImageId(null);
+                            setPrimaryNewFileIndex(index);
+                          }}
+                          className={`rounded-md p-1.5 text-white ${primaryNewFileIndex === index ? "bg-amber-500" : "bg-black/60 hover:bg-amber-500"}`}
                         >
                           <Star
                             size={13}
-                            fill={img.is_primary ? "currentColor" : "none"}
+                            fill={
+                              primaryNewFileIndex === index
+                                ? "currentColor"
+                                : "none"
+                            }
                           />
                         </button>
                         <button
                           type="button"
-                          title="Xóa ảnh"
-                          disabled={imageBusy || saving}
-                          onClick={() => void removeImage(img)}
+                          title="Bỏ ảnh mới"
+                          onClick={() => removeNewFile(index)}
                           className="rounded-md bg-black/60 p-1.5 text-white hover:bg-red-600"
                         >
                           <Trash2 size={13} />
@@ -671,54 +784,17 @@ export default function ProductEditModal({
                 </p>
               )}
               {newFiles.length > 0 && (
-                <div className="mt-3 rounded-lg border border-dashed border-stone-300 bg-white p-3">
-                  <p className="text-xs font-semibold">
-                    Ảnh mới chọn: {newFiles.length}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {newFiles.map((f, i) => (
-                      <span
-                        key={`${f.name}-${i}`}
-                        className="max-w-full truncate rounded-md bg-stone-100 px-2 py-1 text-[11px]"
-                      >
-                        {f.name}
-                        <button
-                          type="button"
-                          className="ml-2 text-red-600"
-                          onClick={() =>
-                            setNewFiles((cur) => cur.filter((_, j) => i !== j))
-                          }
-                          aria-label={`Bỏ ${f.name}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={imageBusy || saving}
-                    onClick={() => void addImages()}
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#c92830] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    {imageBusy ? (
-                      <RefreshCw size={14} className="animate-spin" />
-                    ) : (
-                      <UploadCloud size={14} />
-                    )}{" "}
-                    Tải ảnh lên và lưu
-                  </button>
-                </div>
+                <p className="mt-2 text-[11px] text-stone-500">
+                  {newFiles.length} ảnh mới đang được chọn. Ảnh chỉ được tải lên
+                  khi bạn nhấn “Lưu thay đổi”.
+                </p>
+              )}
+              {deletedImageIds.length > 0 && (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  Đã đánh dấu {deletedImageIds.length} ảnh để xóa khi lưu.
+                </p>
               )}
             </section>
-            {notice && (
-              <p
-                role="status"
-                className="sm:col-span-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
-              >
-                {notice}
-              </p>
-            )}
             {error && (
               <p
                 role="alert"
@@ -739,7 +815,18 @@ export default function ProductEditModal({
             </button>
             <button
               type="submit"
-              disabled={saving || imageBusy || !dirty}
+              disabled={
+                saving ||
+                !(
+                  dirty ||
+                  newFiles.length > 0 ||
+                  deletedImageIds.length > 0 ||
+                  primaryImageId !==
+                    (product.images?.find((image) => image.is_primary)?.id ??
+                      product.images?.[0]?.id ??
+                      null)
+                )
+              }
               className="inline-flex items-center gap-2 rounded-xl bg-[#c92830] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#ad2028] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Save size={15} />

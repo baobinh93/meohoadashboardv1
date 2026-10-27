@@ -76,12 +76,9 @@ export default function ProductAddModal({
     string[]
   >([]);
   const [descriptionOptionError, setDescriptionOptionError] = useState("");
-  const [categoryId, setCategoryId] = useState(
-    () => categories.find((item) => item.is_active)?.id ?? "",
-  );
-  const [colorId, setColorId] = useState(
-    () => colors.find((item) => item.is_active)?.id ?? "",
-  );
+  const [categoryId, setCategoryId] = useState("");
+
+  const [colorId, setColorId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [pendingProducts, setPendingProducts] = useState<PendingProduct[]>([]);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -129,6 +126,8 @@ export default function ProductAddModal({
     setDescriptionOptionError("");
     setFiles([]);
     setError("");
+    setCategoryId("");
+    setColorId("");
   }
 
   function handleToggleDescriptionOption(
@@ -306,7 +305,7 @@ export default function ProductAddModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-product-title"
-        className="flex h-[100dvh] w-full max-w-[1500px] flex-col overflow-hidden bg-[#fffdf9] shadow-2xl sm:h-[min(94dvh,1050px)] sm:rounded-2xl sm:border sm:border-[#e8dccc]"
+        className="flex h-dvh w-full max-w-375 flex-col overflow-hidden bg-[#fffdf9] shadow-2xl sm:h-[min(94dvh,1050px)] sm:rounded-2xl sm:border sm:border-[#e8dccc]"
       >
         <header className="flex shrink-0 items-center justify-between border-b border-[#eee3d5] bg-[#fcf8f2] px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
@@ -366,10 +365,14 @@ export default function ProductAddModal({
                 </div>
               </div>
 
-              <label className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#e7d7c4] bg-white px-3 py-3 text-center transition hover:border-[#c92830]/60 hover:bg-[#fffaf5] sm:min-h-[155px] sm:px-4 sm:py-6">
+              <label
+                className="flex min-h-25 cursor-pointer flex-col items-center justify-center
+               rounded-xl border-2 border-dashed border-[#e7d7c4] bg-white px-3 py-3 
+               text-center transition hover:border-[#c92830]/60 hover:bg-[#fffaf5] sm:min-h-38.75 sm:px-4 sm:py-6"
+              >
                 <UploadCloud
                   size={24}
-                  className="text-[#b9a58d] sm:h-[35px] sm:w-[35px]"
+                  className="text-[#b9a58d] sm:h-8.75 sm:w-8.75"
                 />
                 <span className="mt-1.5 text-sm font-semibold text-slate-700 sm:mt-2">
                   <span className="sm:hidden">Chạm để chọn ảnh</span>
@@ -494,7 +497,7 @@ export default function ProductAddModal({
                       aria-expanded={categoryOpen}
                       disabled={busy}
                       onClick={() => setCategoryOpen((open) => !open)}
-                      className={`${inputClass} flex text-sm min-h-[42px] items-center justify-between gap-3 text-left`}
+                      className={`${inputClass} flex text-sm min-h-10.5 items-center justify-between gap-3 text-left`}
                     >
                       <span className="truncate font-normal">
                         {selectedCategory?.name || "Chọn danh mục"}
@@ -567,7 +570,7 @@ export default function ProductAddModal({
                       aria-expanded={colorOpen}
                       disabled={busy}
                       onClick={() => setColorOpen((open) => !open)}
-                      className={`${inputClass} mt-0 flex min-h-[42px] items-center justify-between gap-3 text-left`}
+                      className={`${inputClass} mt-0 flex min-h-10.5 items-center justify-between gap-3 text-left`}
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         {selectedColor && (
@@ -592,7 +595,7 @@ export default function ProductAddModal({
                       <div
                         role="listbox"
                         aria-label="Chọn màu sắc"
-                        className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-56 overflow-y-auto rounded-xl border border-[#e9e0d7] bg-white p-1.5 shadow-lg"
+                        className="absolute left-0 right-0 top-full z-60 mt-1 max-h-56 overflow-y-auto rounded-xl border border-[#e9e0d7] bg-white p-1.5 shadow-lg"
                       >
                         <button
                           type="button"
@@ -832,7 +835,10 @@ export default function ProductAddModal({
           <aside
             className={`relative z-10 flex min-h-0 flex-col overflow-hidden border-t border-[#eee3d5] bg-[#faf5ee] transition-[height,max-height] duration-300 ease-in-out lg:h-auto lg:max-h-none lg:border-l lg:border-t-0 ${queueOpen ? "h-[34dvh] max-h-[34dvh]" : "h-[56px] max-h-[56px]"}`}
           >
-            <div className="flex min-h-[55px] shrink-0 items-center justify-between gap-2 border-b border-[#eee3d5] px-3 py-2.5 sm:px-5 sm:py-4">
+            <div
+              className="flex min-h-13.75 shrink-0 items-center justify-between gap-2
+             border-b border-[#eee3d5] px-3 py-2.5 sm:px-5 sm:py-4"
+            >
               <button
                 type="button"
                 aria-expanded={queueOpen}
@@ -862,12 +868,12 @@ export default function ProductAddModal({
 
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {pendingProducts.length === 0 ? (
-                <div className="flex min-h-[110px] h-full flex-col items-center justify-center rounded-xl border border-dashed border-[#e6d8c6] px-4 py-3 text-center lg:min-h-[180px]">
+                <div className="flex min-h-27.5 h-full flex-col items-center justify-center rounded-xl border border-dashed border-[#e6d8c6] px-4 py-3 text-center lg:min-h-[180px]">
                   <Package size={28} className="text-[#c5b39e]" />
                   <p className="mt-3 text-sm font-semibold text-slate-700">
                     Chưa có sản phẩm chờ tạo
                   </p>
-                  <p className="mt-1 max-w-[240px] text-xs leading-5 text-slate-500">
+                  <p className="mt-1 max-w-60 text-xs leading-5 text-slate-500">
                     Hoàn tất thông tin ở cột bên trái rồi nhấn “Thêm vào hàng
                     chờ”.
                   </p>
