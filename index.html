@@ -2,30 +2,40 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
+
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
+    <!-- Apple Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <meta name="apple-mobile-web-app-title" content="Mèo Hoa Admin" />
+
+    <!-- Browser theme -->
     <meta name="theme-color" content="#211f1e" />
+
+    <!-- iPhone Home Screen Icon -->
     <link
       rel="apple-touch-icon"
       sizes="180x180"
-      href="/meohoadashboardv1/admin-phone-logo.png"
+      href="%BASE_URL%admin-phone-logo.png"
     />
+
     <title>Mèo Hoa Admin</title>
 
+    <!-- GitHub Pages SPA redirect -->
     <script>
       (function () {
         var redirect = window.location.search;
+
         if (redirect.startsWith("?/")) {
           var decoded = redirect.slice(2).replace(/~and~/g, "&");
+
           window.history.replaceState(
             null,
             "",
@@ -38,6 +48,7 @@
       })();
     </script>
   </head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

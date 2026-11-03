@@ -7,10 +7,10 @@ type MobileBottomNavProps = {
 
 const navigation = [
   {
-    to: "/",
+    to: "/dashboard",
     label: "Tổng Quan",
     icon: LayoutDashboard,
-    matches: (pathname: string) => pathname === "/",
+    matches: (pathname: string) => pathname === "/dashboard",
   },
   {
     to: "/products",
