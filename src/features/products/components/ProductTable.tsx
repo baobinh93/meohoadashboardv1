@@ -45,7 +45,57 @@ const statusLabels: Record<string, string> = {
 
 const money = (value: number | string) =>
   `${Number(value).toLocaleString("vi-VN")} ₫`;
+function splitProductDescription(description?: string | null) {
+  const badges: string[] = [];
+  const textLines: string[] = [];
 
+  if (!description?.trim()) {
+    return { badges, text: "" };
+  }
+
+  const badgeMap: Record<string, string> = {
+    pin: "pin",
+    điện: "điện",
+    "năng lượng mặt trời": "năng lượng mặt trời",
+    "vẫy tay": "vẫy tay",
+  };
+
+  const lines = description.split(/\r?\n/);
+
+  for (const line of lines) {
+    const parts = line.split(",");
+
+    for (const part of parts) {
+      const value = part.trim();
+      if (!value) continue;
+
+      const normalized = value.toLowerCase();
+
+      if (normalized === "không vẫy tay") {
+        continue;
+      }
+
+      const badge = badgeMap[normalized];
+
+      if (badge) {
+        if (!badges.includes(badge)) badges.push(badge);
+        continue;
+      }
+
+      if (/^size\s*\d+(?:[.,]\d+)?\s*(?:cm|mm)?$/i.test(value)) {
+        if (!badges.includes(value)) badges.push(value);
+        continue;
+      }
+
+      textLines.push(value);
+    }
+  }
+
+  return {
+    badges,
+    text: textLines.join(" "),
+  };
+}
 export default function ProductTable({
   products,
   categories,
@@ -85,7 +135,7 @@ export default function ProductTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1050px] border-collapse text-left text-xs">
+        <table className="w-full min-w-262.5 border-collapse text-left text-xs">
           <thead>
             <tr className="border-b border-stone-200 bg-[#fcfbfa] text-[10px] font-semibold uppercase tracking-wide text-stone-500">
               <th className="w-12 px-4 py-3">
@@ -101,7 +151,7 @@ export default function ProductTable({
               {/* <th className="px-3 py-3">SLUG</th> */}
               <th className="px-3 py-3 text-center">Danh mục</th>
               <th className="px-3 py-3 text-center">Màu sắc</th>
-              <th className="px-3 py-3 text-center">Nhãn sản phẩm</th>
+              <th className="px-3 py-3 text-center">Tình trạng hàng</th>
               <th className="px-3 py-3 text-center">Giá niêm yết</th>
               {/* <th className="px-3 py-3 text-center">Ảnh</th> */}
               <th className="px-3 py-3 text-center">Trạng thái</th>
@@ -177,8 +227,43 @@ export default function ProductTable({
                           <div className="line-clamp-2 font-semibold leading-5 text-stone-800">
                             {product.name}
                           </div>
-                          <div className="mt-0.5 line-clamp-1 text-[10px] text-stone-400">
-                            {product.description || "Chưa có mô tả"}
+                          <div className="mt-1 min-w-0 space-y-1">
+                            {(() => {
+                              const { badges, text } = splitProductDescription(
+                                product.description,
+                              );
+
+                              return (
+                                <>
+                                  {/* Thuộc tính sản phẩm */}
+                                  {badges.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {badges.map((item) => (
+                                        <span
+                                          key={item}
+                                          className="inline-flex rounded-md border border-stone-200
+                  bg-stone-50 px-1.5 py-0.5 text-[9px]
+                  font-medium leading-tight text-stone-600"
+                                        >
+                                          {item}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Mô tả sản phẩm */}
+                                  {text ? (
+                                    <p className="line-clamp-2 text-[10px] leading-4 text-stone-400">
+                                      {text}
+                                    </p>
+                                  ) : badges.length === 0 ? (
+                                    <p className="text-[10px] text-stone-400">
+                                      Chưa có mô tả
+                                    </p>
+                                  ) : null}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -307,7 +392,7 @@ export default function ProductTable({
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="w-[62px] rounded-md border border-stone-200 bg-white px-2 py-1.5 text-xs"
+            className="w-15.5 rounded-md border border-stone-200 bg-white px-2 py-1.5 text-xs"
           >
             <option value={10}>10</option>
             <option value={20}>20</option>

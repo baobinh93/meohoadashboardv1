@@ -4,9 +4,10 @@ import { useAuth } from "../auth/AuthContext";
 import { LoginPage } from "../pages/LoginPage";
 import { ProductsPage } from "../pages/ProductsPage";
 import { CategoriesPage } from "../pages/CategoriesPage";
-
+import SettingsPage from "../pages/SettingsPage";
 import AdminLayout from "../layouts/AdminLayout";
 import DashboardPage from "../pages/DashboardPage";
+import OrdersPage from "../pages/OrdersPage";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -30,6 +31,8 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/orders" element={<OrdersPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

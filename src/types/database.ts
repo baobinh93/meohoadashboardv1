@@ -50,3 +50,40 @@ export interface Badge {
   sort_order?: number;
   is_active: boolean;
 }
+
+export type OrderStatus = "NEW" | "CONTACTED" | "CONFIRMED" | "CANCELLED";
+
+export type PickupMethod = "pickup" | "delivery";
+
+export interface Order {
+  id: string;
+  order_number: string;
+
+  product_id: string | null;
+  product_name_snapshot: string;
+  price_snapshot: number | string;
+  product_image_snapshot: string | null;
+
+  customer_name: string;
+  phone: string;
+
+  pickup_method: PickupMethod;
+  delivery_address: string | null;
+  greeting_message: string | null;
+
+  status: OrderStatus;
+
+  handled_by: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderStatusHistory {
+  id: string;
+  order_id: string;
+  old_status: OrderStatus;
+  new_status: OrderStatus;
+  changed_by: string;
+  changed_at: string;
+}

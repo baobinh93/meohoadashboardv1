@@ -212,7 +212,7 @@ export default function ProductAddModal({
     const finalDescription = [
       ...selectedOptionsInDisplayOrder,
       ...customLines,
-    ].join(", ");
+    ].join("\n ");
 
     if (finalDescription.length > DESCRIPTION_MAX_LENGTH) {
       setDescriptionOptionError(

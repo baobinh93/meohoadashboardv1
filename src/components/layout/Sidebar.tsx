@@ -2,12 +2,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Flower2,
-  LogOut,
   X,
   LayoutDashboard,
   Package,
   Tags,
-  UsersRound,
   Settings,
   UserRound,
   ReceiptText,
@@ -15,14 +13,14 @@ import {
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 
+// Các trang điều hướng chính
 const navigation = [
   { to: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: Package },
-  //{ to: "/orders", label: "Đơn hàng", icon: ReceiptText },
-  //{ to: "/accounts", label: "Tài khoản & nhân viên", icon: UsersRound },
-  // { to: "/settings", label: "Cài đặt cửa hàng", icon: Settings },
+  { to: "/orders", label: "Đơn hàng", icon: ReceiptText },
 ];
 
+// Các trang chỉ dành cho Admin
 const adminNavigation = [
   { to: "/categories", label: "Danh mục & Phân loại", icon: Tags },
 ];
@@ -34,8 +32,10 @@ type SidebarProps = {
 };
 
 export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
-  const { user, signOut, isAdmin, roleLoading } = useAuth();
+  // Lấy thông tin tài khoản và quyền từ AuthContext
+  const { user, profile, isAdmin, roleLoading } = useAuth();
 
+  // Chỉ hiển thị menu quản trị khi đã xác định được quyền Admin
   const visibleNavigation = [
     ...navigation,
     ...(isAdmin && !roleLoading ? adminNavigation : []),
@@ -118,35 +118,44 @@ export default function Sidebar({ mobileOpen, onOpen, onClose }: SidebarProps) {
             ))}
           </nav>
 
-          {/* Tài khoản */}
+          {/* Tài khoản ở cuối Sidebar */}
           <div className="mt-auto border-t border-white/10 pt-5">
             <div className="flex items-center gap-3 px-1">
+              {/* Avatar */}
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#c92d35]">
                 <UserRound size={15} strokeWidth={2} />
               </div>
 
+              {/* Thông tin người dùng */}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-bold leading-tight text-white">
-                  {isAdmin ? "Admin" : "Nhân viên"}
+                  {profile?.full_name || (isAdmin ? "Admin" : "Nhân viên")}
                 </div>
 
                 <div
-                  className="mt-1 truncate text-[13px] leading-tight text-stone-400"
+                  className="mt-1 truncate text-[11px] leading-tight text-stone-400"
                   title={user?.email ?? ""}
                 >
                   {user?.email}
                 </div>
               </div>
 
-              <button
-                type="button"
-                aria-label="Đăng xuất"
-                title="Đăng xuất"
-                onClick={() => void signOut()}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-400 transition hover:bg-white/10 hover:text-white"
+              {/* Nút điều hướng Cài đặt */}
+              <NavLink
+                to="/settings"
+                aria-label="Cài đặt tài khoản"
+                title="Cài đặt tài khoản"
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition ${
+                    isActive
+                      ? "bg-white/15 text-white"
+                      : "text-stone-400 hover:bg-white/10 hover:text-white"
+                  }`
+                }
               >
-                <LogOut size={15} strokeWidth={2.5} />
-              </button>
+                <Settings size={17} strokeWidth={2} />
+              </NavLink>
             </div>
           </div>
         </aside>
