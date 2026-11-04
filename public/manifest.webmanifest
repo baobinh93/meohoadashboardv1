@@ -1,18 +1,18 @@
 
 {
-  "id": "/meohoadashboardv1/",
+  "id": "/",
   "name": "Mèo Hoa Admin",
   "short_name": "Mèo Hoa",
   "description": "Hệ thống quản trị cửa hàng Mèo Hoa",
-  "start_url": "/meohoadashboardv1/dashboard",
-  "scope": "/meohoadashboardv1/",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f7f5f1",
   "theme_color": "#211f1e",
   "icons": [
     {
-      "src": "/meohoadashboardv1/admin-phone-logo.png",
+      "src": "/admin-phone-logo.png",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
