@@ -9,16 +9,58 @@ import {
   PackagePlus,
   RefreshCw,
   UploadCloud,
+  UserRound,
 } from "lucide-react";
 
 import { useToast } from "../components/layout/ToastProvider";
 import { listManageableProducts } from "../services/productService";
+import { supabase } from "../lib/supabase";
 import type { Product } from "../types/database";
 
 const RED = "#c92830";
 
+type LatestDeployment = {
+  requested_at: string;
+  requested_by: string;
+  requester_name: string;
+};
+
 function formatCount(value: number) {
   return value.toLocaleString("vi-VN");
+}
+
+function formatDeploymentDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getRequesterName(profile: unknown) {
+  if (!profile || typeof profile !== "object") return "Nhân viên";
+
+  const record = profile as Record<string, unknown>;
+  const candidates = [
+    record.full_name,
+    record.display_name,
+    record.name,
+    record.username,
+    record.email,
+  ];
+
+  const name = candidates.find(
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0,
+  );
+
+  return name?.trim() ?? "Nhân viên";
 }
 
 function StatCard({
@@ -64,6 +106,10 @@ export function DashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [deploying, setDeploying] = useState(false);
+  const [latestDeployment, setLatestDeployment] =
+    useState<LatestDeployment | null>(null);
+  const [deploymentInfoLoading, setDeploymentInfoLoading] = useState(true);
   const toast = useToast();
 
   const loadProducts = useCallback(
@@ -89,9 +135,87 @@ export function DashboardPage() {
     [toast],
   );
 
+  const loadLatestDeployment = useCallback(async () => {
+    setDeploymentInfoLoading(true);
+
+    try {
+      const { data: deployment, error: deploymentError } = await supabase
+        .from("storefront_deployments")
+        .select("requested_at, requested_by")
+        .order("requested_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (deploymentError) throw deploymentError;
+
+      if (!deployment) {
+        setLatestDeployment(null);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", deployment.requested_by)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      setLatestDeployment({
+        requested_at: deployment.requested_at,
+        requested_by: deployment.requested_by,
+        requester_name: getRequesterName(profile),
+      });
+    } catch (error) {
+      console.error("Không tải được thông tin deploy gần nhất:", error);
+      setLatestDeployment(null);
+    } finally {
+      setDeploymentInfoLoading(false);
+    }
+  }, []);
+
+  const handleDeploy = useCallback(async () => {
+    if (deploying) return;
+
+    const confirmed = window.confirm(
+      "Bạn có chắc muốn cập nhật website Mèo Hoa ngay bây giờ? Thao tác này sẽ kích hoạt GitHub Actions để build và xuất bản website.",
+    );
+
+    if (!confirmed) return;
+
+    setDeploying(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "trigger-storefront-deploy",
+        { body: {} },
+      );
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(
+          data?.message || "Không thể gửi yêu cầu cập nhật website.",
+        );
+      }
+
+      toast.success("Đã gửi lệnh cập nhật website lên GitHub thành công.");
+      await loadLatestDeployment();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Không thể gửi lệnh cập nhật website.";
+      toast.error(message);
+    } finally {
+      setDeploying(false);
+    }
+  }, [deploying, loadLatestDeployment, toast]);
+
   useEffect(() => {
     void loadProducts();
-  }, [loadProducts]);
+    void loadLatestDeployment();
+  }, [loadProducts, loadLatestDeployment]);
 
   const stats = useMemo(
     () => ({
@@ -121,15 +245,45 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadProducts(true)}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-stone-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Làm mới
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[210px]">
+          <button
+            type="button"
+            onClick={() => void handleDeploy()}
+            disabled={deploying}
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ backgroundColor: RED }}
+          >
+            <UploadCloud
+              size={15}
+              className={deploying ? "animate-pulse" : ""}
+            />
+            {deploying ? "Đang gửi lệnh..." : "Cập nhật trang web"}
+          </button>
+
+          {!deploymentInfoLoading && latestDeployment ? (
+            <p className="flex flex-wrap items-center justify-center gap-x-1.5 text-[10px] leading-4 text-stone-400">
+              <UserRound size={11} />
+              <span>{latestDeployment.requester_name}</span>
+              <span aria-hidden="true">·</span>
+              <Clock3 size={11} />
+              <span>{formatDeploymentDate(latestDeployment.requested_at)}</span>
+            </p>
+          ) : !deploymentInfoLoading ? (
+            <p className="text-center text-[10px] leading-4 text-stone-400">
+              Chưa có lần cập nhật website
+            </p>
+          ) : null}
+
+          {/* <button
+            type="button"
+            onClick={() => void loadProducts(true)}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 self-stretch rounded-lg border border-stone-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Làm mới dữ liệu
+          </button> */}
+        </div>
       </header>
 
       {loadError && (
