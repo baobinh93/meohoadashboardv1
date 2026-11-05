@@ -27,6 +27,10 @@ function getApplicationServerKey(): ArrayBuffer {
   return bytes.buffer as ArrayBuffer;
 }
 
+// ==========================================
+// PUSH NOTIFICATION
+// ==========================================
+
 export function getPushSupport(): PushSubscriptionStatus {
   const supported =
     "serviceWorker" in navigator &&
@@ -73,7 +77,6 @@ export async function enablePushNotifications(userId: string) {
     throw new Error("Trình duyệt không hỗ trợ Push Notification.");
   }
 
-  // Permission must be requested from a user interaction
   const permission = await Notification.requestPermission();
 
   if (permission !== "granted") {
@@ -150,4 +153,83 @@ export async function disablePushNotifications() {
   if (!unsubscribed) {
     throw new Error("Không thể tắt Push Subscription trên thiết bị.");
   }
+}
+
+// ==========================================
+// PUSH BADGE - INDEXED DB
+// ==========================================
+
+const BADGE_DB_NAME = "meohoa-push-db";
+const BADGE_STORE_NAME = "settings";
+const BADGE_KEY = "unread-count";
+
+function openBadgeDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(BADGE_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(BADGE_STORE_NAME)) {
+        db.createObjectStore(BADGE_STORE_NAME);
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getPushBadgeCount(): Promise<number> {
+  const db = await openBadgeDB();
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction(BADGE_STORE_NAME, "readonly");
+      const request = transaction
+        .objectStore(BADGE_STORE_NAME)
+        .get(BADGE_KEY);
+
+      request.onsuccess = () => {
+        resolve(Number(request.result) || 0);
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function clearPushBadgeCount(): Promise<void> {
+  if (!("serviceWorker" in navigator)) return;
+
+  const registration = await navigator.serviceWorker.ready;
+
+  if (!registration.active) return;
+
+  const channel = new MessageChannel();
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      channel.port1.close();
+      reject(new Error("Không nhận được phản hồi từ Service Worker."));
+    }, 5000);
+
+    channel.port1.onmessage = (event) => {
+      window.clearTimeout(timeout);
+      channel.port1.close();
+
+      if (event.data?.type === "PUSH_BADGE_CLEARED") {
+        resolve();
+      } else {
+        reject(new Error("Không thể xóa Push Badge."));
+      }
+    };
+
+    registration.active!.postMessage(
+      { type: "CLEAR_PUSH_BADGE" },
+      [channel.port2],
+    );
+  });
 }

@@ -1,5 +1,11 @@
 import { LayoutDashboard, Package, ShoppingBag, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+
+import {
+  clearPushBadgeCount,
+  getPushBadgeCount,
+} from "../../services/pushNotificationService";
 
 type MobileBottomNavProps = {
   pendingOrdersCount?: number;
@@ -37,6 +43,58 @@ export default function MobileBottomNav({
 }: MobileBottomNavProps) {
   const location = useLocation();
 
+  const [newNotificationCount, setNewNotificationCount] = useState(0);
+
+  const loadBadgeCount = useCallback(async () => {
+    try {
+      const count = await getPushBadgeCount();
+      setNewNotificationCount(count);
+    } catch (error) {
+      console.error("[Push Badge] Cannot load count:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBadgeCount();
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "PUSH_BADGE_UPDATED") {
+        setNewNotificationCount(Number(event.data.count) || 0);
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener("message", handleMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener("message", handleMessage);
+    };
+  }, [loadBadgeCount]);
+
+  // Chỉ xóa khi Admin thực sự truy cập trang Orders.
+  useEffect(() => {
+    if (!location.pathname.startsWith("/orders")) return;
+
+    let cancelled = false;
+
+    const clearBadge = async () => {
+      try {
+        await clearPushBadgeCount();
+
+        if (!cancelled) {
+          setNewNotificationCount(0);
+        }
+      } catch (error) {
+        console.error("[Push Badge] Cannot clear count:", error);
+      }
+    };
+
+    void clearBadge();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
+
   return (
     <nav
       aria-label="Điều hướng chính trên điện thoại"
@@ -45,6 +103,8 @@ export default function MobileBottomNav({
       <div className="mx-auto grid h-[66px] max-w-xl grid-cols-4">
         {navigation.map(({ to, label, icon: Icon, matches }) => {
           const active = matches(location.pathname);
+          const showNewBadge = to === "/orders" && newNotificationCount > 0;
+
           const showOrderCount = to === "/orders" && pendingOrdersCount > 0;
 
           return (
@@ -59,7 +119,13 @@ export default function MobileBottomNav({
               <span className="relative">
                 <Icon size={23} strokeWidth={active ? 2.4 : 1.9} />
 
-                {showOrderCount && (
+                {showNewBadge && (
+                  <span className="absolute -right-5 -top-2 rounded-full bg-[#c92830] px-1.5 py-0.5 text-[8px] font-bold leading-none text-white ring-2 ring-white">
+                    MỚI
+                  </span>
+                )}
+
+                {!showNewBadge && showOrderCount && (
                   <span className="absolute -right-3 -top-2 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[#c92830] px-1 text-[9px] font-bold text-white ring-2 ring-white">
                     {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
                   </span>
