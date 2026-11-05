@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import type { Product } from "../../../types/database";
 
 export type ProductCardProps = {
@@ -8,9 +8,7 @@ export type ProductCardProps = {
   colorHex?: string;
   badgeName?: string;
   stock?: number;
-  isAdmin: boolean;
   onEdit?: (product: Product) => void;
-  onDelete?: (product: Product) => void;
 };
 
 const statusStyles: Record<string, string> = {
@@ -35,24 +33,12 @@ export default function ProductCard({
   colorHex,
   badgeName,
   stock,
-  isAdmin,
   onEdit,
-  onDelete,
 }: ProductCardProps) {
   const primaryImage =
     product.images?.find((image) => image.is_primary) ?? product.images?.[0];
 
   const status = product.status;
-
-  const handleDelete = () => {
-    const confirmed = window.confirm(
-      `Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" không?`,
-    );
-
-    if (confirmed) {
-      onDelete?.(product);
-    }
-  };
 
   return (
     <article className="overflow-hidden rounded-[22px] border border-[#e9e0d7] bg-white p-4 shadow-sm shadow-stone-900/[0.02]">
@@ -152,7 +138,6 @@ export default function ProductCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* Chỉnh sửa: Admin và Staff */}
           <button
             type="button"
             aria-label={`Chỉnh sửa ${product.name}`}
@@ -163,20 +148,6 @@ export default function ProductCard({
           >
             <Pencil size={19} />
           </button>
-
-          {/* Xóa: Chỉ Admin */}
-          {isAdmin && (
-            <button
-              type="button"
-              aria-label={`Xóa sản phẩm ${product.name}`}
-              title="Xóa sản phẩm"
-              onClick={handleDelete}
-              disabled={!onDelete}
-              className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Trash2 size={19} />
-            </button>
-          )}
         </div>
       </div>
     </article>

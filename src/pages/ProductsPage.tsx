@@ -1,4 +1,3 @@
-import { supabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/layout/ToastProvider";
 import { useEffect, useMemo, useState } from "react";
@@ -139,6 +138,7 @@ export function ProductsPage() {
           ]);
 
         if (!mounted) return;
+
         setCategories(categoryData);
         setColors(colorData);
         setBadges(badgeData);
@@ -158,6 +158,7 @@ export function ProductsPage() {
     }
 
     void loadLookups();
+
     return () => {
       mounted = false;
     };
@@ -209,9 +210,11 @@ export function ProductsPage() {
   // Supabase đã lọc, sắp xếp và phân trang ở phía server.
   const totalPages = productPageData?.totalPages ?? 1;
   const currentPage = Math.min(page, totalPages);
+
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
   const pageProducts = products;
 
   useEffect(() => {
@@ -263,6 +266,7 @@ export function ProductsPage() {
     imageChanges: import("../features/products/components/ProductEditModal").ProductImageDraftChanges,
   ) {
     const currentProduct = products.find((item) => item.id === productId);
+
     if (!currentProduct)
       throw new Error("Không tìm thấy sản phẩm cần cập nhật.");
 
@@ -300,27 +304,14 @@ export function ProductsPage() {
     toast.success("Đã cập nhật sản phẩm thành công.");
   }
 
-  async function handleDeleteProduct(product: Product) {
+  // Admin yêu cầu xóa từ ProductEditModal:
+  // đóng modal chỉnh sửa và mở hộp thoại xác nhận xóa vĩnh viễn dùng chung.
+  function handleRequestDeleteProduct(product: Product) {
     if (!isAdmin || deleting) return;
 
-    setDeleting(true);
-
-    try {
-      // Xóa mềm: chuyển sản phẩm sang trạng thái archived.
-      await rpcArchiveProduct(product.id);
-
-      await reload();
-
-      setSelectedIds((current) => current.filter((id) => id !== product.id));
-
-      toast.success(`Đã lưu trữ sản phẩm "${product.name}".`);
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Không thể lưu trữ sản phẩm.",
-      );
-    } finally {
-      setDeleting(false);
-    }
+    setSelectedIds([product.id]);
+    setEditingProduct(null);
+    setDeleteDialogOpen(true);
   }
 
   function handlePublish(id: string) {
@@ -331,6 +322,7 @@ export function ProductsPage() {
     if (!publishConfirmProductId || publishing) return;
 
     setPublishing(true);
+
     try {
       await publishProduct(publishConfirmProductId);
       await reload();
@@ -351,10 +343,12 @@ export function ProductsPage() {
     const selectedProducts = products.filter((product) =>
       selectedIds.includes(product.id),
     );
+
     if (selectedProducts.length === 0) {
       setSelectedIds([]);
       return;
     }
+
     setDeleteDialogOpen(true);
   }
 
@@ -367,6 +361,7 @@ export function ProductsPage() {
     const selectedProducts = products.filter((product) =>
       selectedIds.includes(product.id),
     );
+
     if (selectedProducts.length === 0) {
       setSelectedIds([]);
       setDeleteDialogOpen(false);
@@ -374,6 +369,7 @@ export function ProductsPage() {
     }
 
     setDeleting(true);
+
     const deletedIds: string[] = [];
     const failures: string[] = [];
 
@@ -392,11 +388,13 @@ export function ProductsPage() {
       setSelectedIds((current) =>
         current.filter((id) => !deletedIds.includes(id)),
       );
+
       setDeleteDialogOpen(false);
 
       if (deletedIds.length > 0) {
         toast.success(`Đã xóa vĩnh viễn ${deletedIds.length} sản phẩm.`);
       }
+
       if (failures.length > 0) {
         toast.error(
           `Không xóa được ${failures.length} sản phẩm: ${failures.join(" · ")}`,
@@ -423,6 +421,7 @@ export function ProductsPage() {
 
   async function handleReload() {
     setLoading(true);
+
     try {
       await reload();
       toast.success("Đã làm mới danh sách sản phẩm.");
@@ -441,6 +440,7 @@ export function ProductsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-stone-900">
             Quản lý sản phẩm
           </h1>
+
           <p className="mt-1 text-xs text-stone-500">
             Danh sách sản phẩm của Mèo Hoa Shop
           </p>
@@ -512,6 +512,7 @@ export function ProductsPage() {
                   : value === "name_desc"
                     ? "name-desc"
                     : "newest";
+
           setSort(mappedSort);
           setPage(1);
           setSelectedIds([]);
@@ -525,6 +526,7 @@ export function ProductsPage() {
             <h2 className="text-sm font-semibold text-stone-900">
               Danh sách sản phẩm
             </h2>
+
             <p className="mt-1 text-xs text-stone-500">
               {loading || productsLoading
                 ? "Đang tải dữ liệu..."
@@ -580,9 +582,11 @@ export function ProductsPage() {
               <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-stone-100 text-stone-400">
                 <Package size={22} />
               </div>
+
               <p className="text-sm font-medium text-stone-700">
                 Không tìm thấy sản phẩm
               </p>
+
               <p className="mt-1 text-xs text-stone-400">
                 Thử thay đổi từ khóa hoặc bộ lọc.
               </p>
@@ -592,20 +596,13 @@ export function ProductsPage() {
               const category = categories.find(
                 (item) => item.id === product.category_id,
               );
+
               const color = colors.find((item) => item.id === product.color_id);
               const badge = badges.find((item) => item.id === product.badge_id);
 
               return (
                 <div key={product.id} className="relative">
-                  {/* <label className="absolute left-2 top-2 z-10 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-stone-200 bg-white/95 shadow-sm">
-                    <input
-                      type="checkbox"
-                      aria-label={`Chọn ${product.name}`}
-                      checked={selectedIds.includes(product.id)}
-                      onChange={() => toggleProduct(product.id)}
-                      className="h-4 w-4 cursor-pointer accent-[#c92830]"
-                    />
-                  </label> */}
+                  {/* Checkbox chọn sản phẩm trên mobile đang được tắt. */}
 
                   <ProductCard
                     product={product}
@@ -613,11 +610,9 @@ export function ProductsPage() {
                     colorName={color?.name}
                     colorHex={color?.hex_code ?? undefined}
                     badgeName={badge?.name}
-                    isAdmin={isAdmin}
                     onEdit={(selectedProduct) =>
                       setEditingProduct(selectedProduct)
                     }
-                    onDelete={handleDeleteProduct}
                   />
 
                   {product.status === "draft" && (
@@ -691,6 +686,7 @@ export function ProductsPage() {
                 <Trash2 size={14} />
                 {deleting ? "Đang xóa..." : "Xóa đã chọn"}
               </button>
+
               <button
                 type="button"
                 disabled={deleting}
@@ -712,10 +708,12 @@ export function ProductsPage() {
           onClose={() => setModalOpen(false)}
           onCreated={async (createdCount, finalMessage) => {
             if (createdCount > 0) setPage(1);
+
             if (createdCount > 0)
               toast.success(
                 finalMessage || `Đã thêm ${createdCount} sản phẩm thành công.`,
               );
+
             try {
               await reload();
             } catch (e) {
@@ -749,6 +747,7 @@ export function ProductsPage() {
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700">
                 <Check size={19} />
               </div>
+
               <div className="min-w-0 flex-1">
                 <h2
                   id="publish-product-title"
@@ -756,6 +755,7 @@ export function ProductsPage() {
                 >
                   Xác nhận xuất bản sản phẩm?
                 </h2>
+
                 <p className="mt-1 text-sm leading-5 text-stone-600">
                   Sản phẩm “
                   {products.find(
@@ -766,6 +766,7 @@ export function ProductsPage() {
                 </p>
               </div>
             </div>
+
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -775,6 +776,7 @@ export function ProductsPage() {
               >
                 Hủy
               </button>
+
               <button
                 type="button"
                 disabled={publishing}
@@ -789,6 +791,7 @@ export function ProductsPage() {
         </div>
       )}
 
+      {/* Modal xác nhận xóa vĩnh viễn dùng chung cho xóa đơn và xóa hàng loạt */}
       {isAdmin && deleteDialogOpen && (
         <div
           className="fixed inset-0 z-90 grid place-items-center bg-stone-950/40 p-4"
@@ -808,6 +811,7 @@ export function ProductsPage() {
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-50 text-red-600">
                 <Trash2 size={19} />
               </div>
+
               <div className="min-w-0 flex-1">
                 <h2
                   id="delete-products-title"
@@ -815,6 +819,7 @@ export function ProductsPage() {
                 >
                   Xóa vĩnh viễn sản phẩm?
                 </h2>
+
                 <p className="mt-1 text-sm leading-5 text-stone-600">
                   Bạn sắp xóa{" "}
                   {
@@ -826,6 +831,7 @@ export function ProductsPage() {
                 </p>
               </div>
             </div>
+
             <div className="mt-4 max-h-40 overflow-y-auto rounded-lg border border-stone-200 bg-stone-50 p-3">
               <ul className="space-y-1.5 text-sm text-stone-700">
                 {products
@@ -836,6 +842,7 @@ export function ProductsPage() {
                       • {product.name}
                     </li>
                   ))}
+
                 {products.filter((product) => selectedIds.includes(product.id))
                   .length > 5 && (
                   <li className="text-stone-500">
@@ -848,10 +855,12 @@ export function ProductsPage() {
                 )}
               </ul>
             </div>
+
             <p className="mt-3 text-xs text-red-700">
               Chỉ tiếp tục nếu đây là sản phẩm test hoặc bạn chắc chắn không cần
               giữ lại.
             </p>
+
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -861,6 +870,7 @@ export function ProductsPage() {
               >
                 Hủy
               </button>
+
               <button
                 type="button"
                 disabled={deleting}
@@ -881,7 +891,9 @@ export function ProductsPage() {
           categories={categories}
           colors={colors}
           badges={badges}
+          isAdmin={isAdmin}
           onClose={() => setEditingProduct(null)}
+          onDelete={handleRequestDeleteProduct}
           onSave={handleSaveProduct}
         />
       )}

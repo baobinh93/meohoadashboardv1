@@ -9,12 +9,14 @@ type Option = {
   is_active?: boolean;
   hex_code?: string | null;
 };
+
 export type ProductImageDraftChanges = {
   newFiles: File[];
   deletedImageIds: string[];
   primaryImageId: string | null;
   primaryNewFileIndex: number | null;
 };
+
 export type ProductEditValues = {
   name: string;
   price: number;
@@ -25,18 +27,22 @@ export type ProductEditValues = {
   badge_id: string | null;
   status: Product["status"];
 };
+
 type ProductEditModalProps = {
   product: Product;
   categories: Option[];
   colors: Option[];
   badges: Badge[];
+  isAdmin: boolean;
   onClose: () => void;
+  onDelete: (product: Product) => void;
   onSave: (
     productId: string,
     values: ProductEditValues,
     imageChanges: ProductImageDraftChanges,
   ) => Promise<void>;
 };
+
 const inputClass =
   "mt-1 w-full rounded-xl border border-[#e9e0d7] bg-white px-3 py-2.5 text-base text-stone-800 outline-none transition focus:border-red-300 focus:ring-2 focus:ring-red-50";
 
@@ -45,7 +51,9 @@ export default function ProductEditModal({
   categories,
   colors,
   badges,
+  isAdmin,
   onClose,
+  onDelete,
   onSave,
 }: ProductEditModalProps) {
   const [name, setName] = useState(product.name);
@@ -57,34 +65,43 @@ export default function ProductEditModal({
   const [categoryId, setCategoryId] = useState(product.category_id);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
   const selectedCategory = categories.find(
     (category) => category.id === categoryId,
   );
+
   const [colorId, setColorId] = useState(product.color_id);
   const [colorOpen, setColorOpen] = useState(false);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const selectedColor = colors.find((color) => color.id === colorId);
+
   const [badgeId, setBadgeId] = useState(product.badge_id ?? "");
   const [badgeOpen, setBadgeOpen] = useState(false);
   const badgeDropdownRef = useRef<HTMLDivElement>(null);
   const selectedBadge = badges.find((badge) => badge.id === badgeId);
+
   const [status, setStatus] = useState<Product["status"]>(product.status);
   const [statusOpen, setStatusOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
+
   const [images, setImages] = useState<ProductImage[]>(product.images ?? []);
   const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
+
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(
     product.images?.find((image) => image.is_primary)?.id ??
       product.images?.[0]?.id ??
       null,
   );
+
   const [primaryNewFileIndex, setPrimaryNewFileIndex] = useState<number | null>(
     null,
   );
+
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
   const dirty =
     name !== product.name ||
     price !== String(product.price ?? "") ||
@@ -95,7 +112,9 @@ export default function ProductEditModal({
     colorId !== product.color_id ||
     badgeId !== (product.badge_id ?? "") ||
     status !== product.status;
+
   const canClose = !saving;
+
   const activeBadges = useMemo(
     () => badges.filter((b) => b.is_active || b.id === badgeId),
     [badges, badgeId],
@@ -104,41 +123,53 @@ export default function ProductEditModal({
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
+
       if (!categoryDropdownRef.current?.contains(target))
         setCategoryOpen(false);
+
       if (!colorDropdownRef.current?.contains(target)) setColorOpen(false);
+
       if (!badgeDropdownRef.current?.contains(target)) setBadgeOpen(false);
+
       if (!statusDropdownRef.current?.contains(target)) setStatusOpen(false);
     }
 
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
     setImages(product.images ?? []);
     setDeletedImageIds([]);
+
     setPrimaryImageId(
       product.images?.find((image) => image.is_primary)?.id ??
         product.images?.[0]?.id ??
         null,
     );
+
     setPrimaryNewFileIndex(null);
     setNewFiles([]);
     setPreviewUrls([]);
   }, [product.id, product.images]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape" && canClose) close();
     }
+
     window.addEventListener("keydown", onKeyDown);
+
     return () => window.removeEventListener("keydown", onKeyDown);
+
     // close behavior intentionally uses current form state
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canClose, dirty]);
 
   function close() {
     if (!canClose) return;
+
     if (
       (dirty ||
         newFiles.length > 0 ||
@@ -150,10 +181,13 @@ export default function ProductEditModal({
       !window.confirm("Bạn có thay đổi chưa lưu. Đóng mà không lưu?")
     )
       return;
+
     onClose();
   }
+
   function addImages() {
     setError("");
+
     const selected = Array.from(
       (
         document.getElementById(
@@ -161,25 +195,32 @@ export default function ProductEditModal({
         ) as HTMLInputElement | null
       )?.files ?? [],
     );
+
     const invalid = selected.find(
       (file) =>
         file.size > 10 * 1024 * 1024 ||
         !["image/jpeg", "image/png", "image/webp"].includes(file.type),
     );
+
     if (invalid) {
       setError(
         `Ảnh không hợp lệ: ${invalid.name}. Chỉ hỗ trợ JPG, PNG, WEBP tối đa 10MB/ảnh.`,
       );
       return;
     }
+
     if (!selected.length) return;
+
     const nextFiles = [...newFiles, ...selected];
+
     const nextUrls = [
       ...previewUrls,
       ...selected.map((file) => URL.createObjectURL(file)),
     ];
+
     setNewFiles(nextFiles);
     setPreviewUrls(nextUrls);
+
     if (
       primaryImageId === null &&
       primaryNewFileIndex === null &&
@@ -187,20 +228,26 @@ export default function ProductEditModal({
     ) {
       setPrimaryNewFileIndex(0);
     }
+
     const input = document.getElementById(
       "product-edit-images",
     ) as HTMLInputElement | null;
+
     if (input) input.value = "";
   }
 
   function removeImage(image: ProductImage) {
     const remaining = images.filter((item) => item.id !== image.id);
+
     setImages(remaining);
+
     setDeletedImageIds((current) =>
       current.includes(image.id) ? current : [...current, image.id],
     );
+
     if (primaryImageId === image.id) {
       const fallback = remaining[0];
+
       if (fallback) {
         setPrimaryImageId(fallback.id);
         setPrimaryNewFileIndex(null);
@@ -221,11 +268,15 @@ export default function ProductEditModal({
 
   function removeNewFile(index: number) {
     const url = previewUrls[index];
+
     if (url) URL.revokeObjectURL(url);
+
     setNewFiles((current) => current.filter((_, i) => i !== index));
     setPreviewUrls((current) => current.filter((_, i) => i !== index));
+
     if (primaryNewFileIndex === index) {
       const fallback = images[0];
+
       setPrimaryImageId(fallback?.id ?? null);
       setPrimaryNewFileIndex(null);
     } else if (primaryNewFileIndex !== null && primaryNewFileIndex > index) {
@@ -234,9 +285,11 @@ export default function ProductEditModal({
   }
 
   const previewUrlsRef = useRef<string[]>([]);
+
   useEffect(() => {
     previewUrlsRef.current = previewUrls;
   }, [previewUrls]);
+
   useEffect(
     () => () => {
       previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -247,16 +300,23 @@ export default function ProductEditModal({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
     const p = Number(price);
     const op = originalPrice.trim() ? Number(originalPrice) : null;
+
     if (!name.trim()) return setError("Vui lòng nhập tên sản phẩm.");
+
     if (!price.trim() || !Number.isFinite(p) || p < 0)
       return setError("Giá bán không hợp lệ.");
+
     if (op !== null && (!Number.isFinite(op) || op < 0))
       return setError("Giá gốc không hợp lệ.");
+
     if (!categoryId || !colorId)
       return setError("Vui lòng chọn danh mục và màu sắc.");
+
     setSaving(true);
+
     try {
       await onSave(
         product.id,
@@ -290,6 +350,7 @@ export default function ProductEditModal({
       setSaving(false);
     }
   }
+
   return (
     <div
       className="fixed inset-0 z-100 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
@@ -311,10 +372,12 @@ export default function ProductEditModal({
             >
               Sửa sản phẩm
             </h2>
+
             <p className="mt-1 text-xs text-stone-500">
               Chỉnh sửa thông tin, hình thức cung cấp và hình ảnh.
             </p>
           </div>
+
           <button
             type="button"
             onClick={close}
@@ -325,6 +388,7 @@ export default function ProductEditModal({
             <X size={19} />
           </button>
         </header>
+
         <form onSubmit={submit} className="min-h-0 flex-1 overflow-y-auto">
           <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
             <label className="sm:col-span-2 text-xs font-semibold text-stone-700">
@@ -338,6 +402,7 @@ export default function ProductEditModal({
                 required
               />
             </label>
+
             <label className="text-xs font-semibold text-stone-700">
               Giá bán (₫)
               <input
@@ -350,6 +415,7 @@ export default function ProductEditModal({
                 required
               />
             </label>
+
             <label className="text-xs font-semibold text-stone-700">
               Giá gốc (₫) — không bắt buộc
               <input
@@ -361,6 +427,7 @@ export default function ProductEditModal({
                 className={inputClass}
               />
             </label>
+
             <label className="sm:col-span-2 text-xs font-semibold text-stone-700">
               Mô tả
               <textarea
@@ -371,6 +438,7 @@ export default function ProductEditModal({
                 placeholder="Mô tả sản phẩm..."
               />
             </label>
+
             <div
               className="relative text-xs font-semibold text-stone-700"
               ref={categoryDropdownRef}
@@ -378,6 +446,7 @@ export default function ProductEditModal({
               <label className="mb-1 block" id="product-edit-category-label">
                 Danh mục
               </label>
+
               <button
                 type="button"
                 aria-labelledby="product-edit-category-label"
@@ -394,11 +463,13 @@ export default function ProductEditModal({
                 <span className="truncate font-normal">
                   {selectedCategory?.name || "Chọn danh mục"}
                 </span>
+
                 <ChevronDown
                   size={16}
                   className={`shrink-0 text-stone-500 transition-transform ${categoryOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               {categoryOpen && (
                 <div
                   role="listbox"
@@ -417,6 +488,7 @@ export default function ProductEditModal({
                   >
                     Chọn danh mục
                   </button>
+
                   {categories.map((category) => (
                     <button
                       key={category.id}
@@ -435,6 +507,7 @@ export default function ProductEditModal({
                 </div>
               )}
             </div>
+
             <div
               className="relative text-xs font-semibold text-stone-700"
               ref={colorDropdownRef}
@@ -442,6 +515,7 @@ export default function ProductEditModal({
               <label className="mb-1 block" id="product-edit-color-label">
                 Màu sắc
               </label>
+
               <button
                 type="button"
                 aria-labelledby="product-edit-color-label"
@@ -453,8 +527,7 @@ export default function ProductEditModal({
                   setBadgeOpen(false);
                   setStatusOpen(false);
                 }}
-                className={`${inputClass} flex min-h-10.5 items-center justify-between gap-3 
-                text-left`}
+                className={`${inputClass} flex min-h-10.5 items-center justify-between gap-3 text-left`}
               >
                 <span className="flex min-w-0 items-center gap-2">
                   {selectedColor && (
@@ -465,10 +538,12 @@ export default function ProductEditModal({
                       }}
                     />
                   )}
+
                   <span className="truncate font-normal">
                     {selectedColor?.name || "Chọn màu sắc"}
                   </span>
                 </span>
+
                 <ChevronDown
                   size={16}
                   className={`shrink-0 text-stone-500 transition-transform ${colorOpen ? "rotate-180" : ""}`}
@@ -495,6 +570,7 @@ export default function ProductEditModal({
                   >
                     Chọn màu sắc
                   </button>
+
                   {colors.map((color) => (
                     <button
                       key={color.id}
@@ -515,12 +591,14 @@ export default function ProductEditModal({
                           backgroundColor: color.hex_code || "#e7e5e4",
                         }}
                       />
+
                       <span className="truncate">{color.name}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
+
             <div
               className="relative text-xs font-semibold text-stone-700"
               ref={badgeDropdownRef}
@@ -528,6 +606,7 @@ export default function ProductEditModal({
               <label className="mb-1 block" id="product-edit-badge-label">
                 Hình thức cung cấp
               </label>
+
               <button
                 type="button"
                 aria-labelledby="product-edit-badge-label"
@@ -544,11 +623,13 @@ export default function ProductEditModal({
                 <span className="truncate font-normal">
                   {selectedBadge?.name || "Không gắn nhãn"}
                 </span>
+
                 <ChevronDown
                   size={16}
                   className={`shrink-0 text-stone-500 transition-transform ${badgeOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               {badgeOpen && (
                 <div
                   role="listbox"
@@ -567,6 +648,7 @@ export default function ProductEditModal({
                   >
                     Không gắn nhãn
                   </button>
+
                   {activeBadges.map((badge) => (
                     <button
                       key={badge.id}
@@ -584,10 +666,12 @@ export default function ProductEditModal({
                   ))}
                 </div>
               )}
+
               <span className="mt-1 block text-[11px] font-normal text-stone-500">
                 Ví dụ: CÓ SẴN hoặc THEO YÊU CẦU
               </span>
             </div>
+
             <div
               className="relative text-xs font-semibold text-stone-700"
               ref={statusDropdownRef}
@@ -595,6 +679,7 @@ export default function ProductEditModal({
               <label className="mb-1 block" id="product-edit-status-label">
                 Trạng thái xuất bản
               </label>
+
               <button
                 type="button"
                 aria-labelledby="product-edit-status-label"
@@ -615,11 +700,13 @@ export default function ProductEditModal({
                       ? "Offline"
                       : "Chờ xuất bản"}
                 </span>
+
                 <ChevronDown
                   size={16}
                   className={`shrink-0 text-stone-500 transition-transform ${statusOpen ? "rotate-180" : ""}`}
                 />
               </button>
+
               {statusOpen && (
                 <div
                   role="listbox"
@@ -640,6 +727,7 @@ export default function ProductEditModal({
                       Chờ xuất bản
                     </button>
                   )}
+
                   <button
                     type="button"
                     role="option"
@@ -652,6 +740,7 @@ export default function ProductEditModal({
                   >
                     Online
                   </button>
+
                   <button
                     type="button"
                     role="option"
@@ -667,11 +756,13 @@ export default function ProductEditModal({
                 </div>
               )}
             </div>
+
             <section className="sm:col-span-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold text-stone-700">
                   Hình ảnh sản phẩm
                 </p>
+
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100">
                   <ImagePlus size={14} /> Thêm ảnh
                   <input
@@ -685,6 +776,7 @@ export default function ProductEditModal({
                   />
                 </label>
               </div>
+
               {images.length || newFiles.length ? (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {images.map((img) => (
@@ -697,12 +789,14 @@ export default function ProductEditModal({
                         alt={img.alt || product.name}
                         className="h-full w-full object-cover"
                       />
+
                       {primaryImageId === img.id &&
                         primaryNewFileIndex === null && (
                           <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-1 text-center text-[10px] font-semibold text-white">
                             Ảnh đại diện
                           </span>
                         )}
+
                       <div className="absolute inset-x-1 top-1 flex justify-between gap-1">
                         <button
                           type="button"
@@ -720,6 +814,7 @@ export default function ProductEditModal({
                             }
                           />
                         </button>
+
                         <button
                           type="button"
                           title="Xóa ảnh"
@@ -732,6 +827,7 @@ export default function ProductEditModal({
                       </div>
                     </div>
                   ))}
+
                   {newFiles.map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
@@ -742,11 +838,13 @@ export default function ProductEditModal({
                         alt={file.name}
                         className="h-full w-full object-cover"
                       />
+
                       {primaryNewFileIndex === index && (
                         <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-1 text-center text-[10px] font-semibold text-white">
                           Ảnh đại diện
                         </span>
                       )}
+
                       <div className="absolute inset-x-1 top-1 flex justify-between gap-1">
                         <button
                           type="button"
@@ -766,6 +864,7 @@ export default function ProductEditModal({
                             }
                           />
                         </button>
+
                         <button
                           type="button"
                           title="Bỏ ảnh mới"
@@ -783,18 +882,21 @@ export default function ProductEditModal({
                   Sản phẩm chưa có ảnh.
                 </p>
               )}
+
               {newFiles.length > 0 && (
                 <p className="mt-2 text-[11px] text-stone-500">
                   {newFiles.length} ảnh mới đang được chọn. Ảnh chỉ được tải lên
                   khi bạn nhấn “Lưu thay đổi”.
                 </p>
               )}
+
               {deletedImageIds.length > 0 && (
                 <p className="mt-2 text-[11px] text-amber-700">
                   Đã đánh dấu {deletedImageIds.length} ảnh để xóa khi lưu.
                 </p>
               )}
             </section>
+
             {error && (
               <p
                 role="alert"
@@ -804,34 +906,51 @@ export default function ProductEditModal({
               </p>
             )}
           </div>
-          <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-stone-200 bg-[#fffdfa] px-4 py-3 sm:px-6">
-            <button
-              type="button"
-              onClick={close}
-              disabled={!canClose}
-              className="rounded-xl border border-stone-200 px-4 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={
-                saving ||
-                !(
-                  dirty ||
-                  newFiles.length > 0 ||
-                  deletedImageIds.length > 0 ||
-                  primaryImageId !==
-                    (product.images?.find((image) => image.is_primary)?.id ??
-                      product.images?.[0]?.id ??
-                      null)
-                )
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-[#c92830] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#ad2028] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save size={15} />
-              {saving ? "Đang lưu..." : "Lưu thay đổi"}
-            </button>
+          <footer className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-stone-200 bg-[#fffdfa] px-4 py-3 sm:px-6">
+            {isAdmin ? (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => onDelete(product)}
+                className="inline-flex shrink-0 -translate-y-1 items-center gap-1.5 self-start text-[11px] font-semibold text-slate-500 underline decoration-slate-300 underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 size={13} />
+                Xóa
+              </button>
+            ) : (
+              <span />
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={close}
+                disabled={!canClose}
+                className="rounded-xl border border-stone-200 px-4 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  saving ||
+                  !(
+                    dirty ||
+                    newFiles.length > 0 ||
+                    deletedImageIds.length > 0 ||
+                    primaryImageId !==
+                      (product.images?.find((image) => image.is_primary)?.id ??
+                        product.images?.[0]?.id ??
+                        null)
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-[#c92830] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#ad2028] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save size={15} />
+                {saving ? "Đang lưu..." : "Lưu thay đổi"}
+              </button>
+            </div>
           </footer>
         </form>
       </section>
