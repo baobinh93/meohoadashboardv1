@@ -3,8 +3,11 @@ import { Link } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
+  Bell,
+  BellOff,
   CheckCircle2,
   Clock3,
+  LoaderCircle,
   Package,
   PackagePlus,
   RefreshCw,
@@ -13,6 +16,14 @@ import {
 } from "lucide-react";
 
 import { useToast } from "../components/layout/ToastProvider";
+import { useAuth } from "../auth/AuthContext";
+import {
+  getPushStatus,
+  enablePushNotifications,
+  disablePushNotifications,
+  type PushSubscriptionStatus,
+} from "../services/pushNotificationService";
+
 import { listManageableProducts } from "../services/productService";
 import { supabase } from "../lib/supabase";
 import type { Product } from "../types/database";
@@ -91,12 +102,14 @@ function StatCard({
             {formatCount(value)}
           </p>
         </div>
+
         <div
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${iconClasses}`}
         >
           <Icon size={19} />
         </div>
       </div>
+
       <p className="mt-3 text-xs leading-5 text-stone-500">{description}</p>
     </div>
   );
@@ -107,11 +120,84 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [deploying, setDeploying] = useState(false);
+
   const [latestDeployment, setLatestDeployment] =
     useState<LatestDeployment | null>(null);
+
   const [deploymentInfoLoading, setDeploymentInfoLoading] = useState(true);
+
   const toast = useToast();
 
+  // Authentication
+  const { user, isAdmin, roleLoading } = useAuth();
+
+  // Push Notification
+  const [pushStatus, setPushStatus] = useState<PushSubscriptionStatus>({
+    supported: false,
+    permission: "unsupported",
+    subscribed: false,
+  });
+
+  const [pushLoading, setPushLoading] = useState(false);
+
+  const loadPushStatus = useCallback(async () => {
+    if (!isAdmin) return;
+
+    try {
+      const status = await getPushStatus();
+      setPushStatus(status);
+    } catch (error) {
+      console.error("Không tải được trạng thái Push:", error);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!roleLoading && isAdmin) {
+      void loadPushStatus();
+    }
+  }, [roleLoading, isAdmin, loadPushStatus]);
+
+  // Enable Push Notification
+  const handleEnablePush = async () => {
+    if (!user || pushLoading) return;
+
+    setPushLoading(true);
+
+    try {
+      await enablePushNotifications(user.id);
+      await loadPushStatus();
+
+      toast.success("Đã bật thông báo đơn hàng trên thiết bị này.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Không thể bật thông báo.",
+      );
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  // Disable Push Notification
+  const handleDisablePush = async () => {
+    if (pushLoading) return;
+
+    setPushLoading(true);
+
+    try {
+      await disablePushNotifications();
+      await loadPushStatus();
+
+      toast.success("Đã tắt thông báo trên thiết bị này.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Không thể tắt thông báo.",
+      );
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  // Load products
   const loadProducts = useCallback(
     async (showSuccess = false) => {
       setLoading(true);
@@ -119,13 +205,18 @@ export function DashboardPage() {
 
       try {
         const data = await listManageableProducts();
+
         setProducts(data);
-        if (showSuccess) toast.success("Đã làm mới dữ liệu tổng quan.");
+
+        if (showSuccess) {
+          toast.success("Đã làm mới dữ liệu tổng quan.");
+        }
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
             : "Không tải được dữ liệu tổng quan.";
+
         setLoadError(message);
         toast.error(message);
       } finally {
@@ -135,6 +226,7 @@ export function DashboardPage() {
     [toast],
   );
 
+  // Load latest deployment
   const loadLatestDeployment = useCallback(async () => {
     setDeploymentInfoLoading(true);
 
@@ -174,6 +266,7 @@ export function DashboardPage() {
     }
   }, []);
 
+  // Deploy storefront
   const handleDeploy = useCallback(async () => {
     if (deploying) return;
 
@@ -200,23 +293,27 @@ export function DashboardPage() {
       }
 
       toast.success("Đã gửi lệnh cập nhật website lên GitHub thành công.");
+
       await loadLatestDeployment();
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : "Không thể gửi lệnh cập nhật website.";
+
       toast.error(message);
     } finally {
       setDeploying(false);
     }
   }, [deploying, loadLatestDeployment, toast]);
 
+  // Initial loading
   useEffect(() => {
     void loadProducts();
     void loadLatestDeployment();
   }, [loadProducts, loadLatestDeployment]);
 
+  // Product statistics
   const stats = useMemo(
     () => ({
       total: products.length,
@@ -231,14 +328,17 @@ export function DashboardPage() {
 
   return (
     <section className="min-w-0 space-y-6 pb-20 md:pb-0">
+      {/* Dashboard Header */}
       <header className="flex flex-col justify-between gap-4 border-b border-[#f0e9e1] pb-5 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#c92830]">
             Catalogue management
           </p>
+
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
             Tổng quan
           </h1>
+
           <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">
             Theo dõi tình trạng sản phẩm và những việc cần xử lý trong cửa hàng
             Mèo Hoa.
@@ -257,6 +357,7 @@ export function DashboardPage() {
               size={15}
               className={deploying ? "animate-pulse" : ""}
             />
+
             {deploying ? "Đang gửi lệnh..." : "Cập nhật trang web"}
           </button>
 
@@ -273,19 +374,82 @@ export function DashboardPage() {
               Chưa có lần cập nhật website
             </p>
           ) : null}
-
-          {/* <button
-            type="button"
-            onClick={() => void loadProducts(true)}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 self-stretch rounded-lg border border-stone-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            Làm mới dữ liệu
-          </button> */}
         </div>
       </header>
 
+      {/* Push Notification Card */}
+      {!roleLoading && isAdmin && (
+        <section className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex items-start gap-3">
+            <div
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
+                pushStatus.subscribed
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-stone-100 text-stone-500"
+              }`}
+            >
+              <Bell size={20} />
+            </div>
+
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-stone-900">
+                Thông báo đơn hàng
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-stone-500">
+                {pushStatus.subscribed
+                  ? "Thiết bị này đang nhận thông báo khi có đơn hàng mới."
+                  : "Bật thông báo để nhận tin ngay khi khách đặt hàng."}
+              </p>
+
+              {pushStatus.permission === "denied" && (
+                <p className="mt-1 text-xs text-red-600">
+                  Quyền thông báo đang bị chặn trong cài đặt trình duyệt.
+                </p>
+              )}
+
+              {!pushStatus.supported && (
+                <p className="mt-1 text-xs text-red-600">
+                  Trình duyệt hoặc thiết bị không hỗ trợ Push Notification.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {pushStatus.subscribed ? (
+            <button
+              type="button"
+              onClick={() => void handleDisablePush()}
+              disabled={pushLoading}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-stone-200 px-4 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:opacity-50"
+            >
+              {pushLoading ? (
+                <LoaderCircle size={15} className="animate-spin" />
+              ) : (
+                <BellOff size={15} />
+              )}
+              Tắt thông báo
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleEnablePush()}
+              disabled={pushLoading || !pushStatus.supported}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: RED }}
+            >
+              {pushLoading ? (
+                <LoaderCircle size={15} className="animate-spin" />
+              ) : (
+                <Bell size={15} />
+              )}
+              Bật thông báo
+            </button>
+          )}
+        </section>
+      )}
+
+      {/* Load Error */}
       {loadError && (
         <div
           role="alert"
@@ -295,10 +459,12 @@ export function DashboardPage() {
             <p className="text-sm font-semibold text-red-800">
               Chưa tải được dữ liệu tổng quan
             </p>
+
             <p className="mt-1 break-words text-xs leading-5 text-red-700">
               {loadError}
             </p>
           </div>
+
           <button
             type="button"
             onClick={() => void loadProducts()}
@@ -310,6 +476,7 @@ export function DashboardPage() {
         </div>
       )}
 
+      {/* Dashboard Content */}
       {loading && products.length === 0 && !loadError ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((item) => (
@@ -321,6 +488,7 @@ export function DashboardPage() {
         </div>
       ) : !loadError ? (
         <>
+          {/* Statistics */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Tổng sản phẩm"
@@ -329,6 +497,7 @@ export function DashboardPage() {
               icon={Package}
               accent="stone"
             />
+
             <StatCard
               label="Đang bán"
               value={stats.published}
@@ -336,6 +505,7 @@ export function DashboardPage() {
               icon={CheckCircle2}
               accent="green"
             />
+
             <StatCard
               label="Chờ xuất bản"
               value={stats.draft}
@@ -343,6 +513,7 @@ export function DashboardPage() {
               icon={Clock3}
               accent="red"
             />
+
             <StatCard
               label="Đã lưu trữ"
               value={stats.archived}
@@ -352,17 +523,21 @@ export function DashboardPage() {
             />
           </div>
 
+          {/* Main Dashboard Sections */}
           <div className="grid items-start gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            {/* Pending Tasks */}
             <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-3 border-b border-[#f0e9e1] px-4 py-4 sm:px-5">
                 <div>
                   <h2 className="text-sm font-bold text-stone-900">
                     Cần xử lý
                   </h2>
+
                   <p className="mt-1 text-xs text-stone-500">
                     Ưu tiên kiểm tra sản phẩm đang chờ xuất bản.
                   </p>
                 </div>
+
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-50 text-[#c92830]">
                   <UploadCloud size={18} />
                 </div>
@@ -374,15 +549,18 @@ export function DashboardPage() {
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-[#c92830] shadow-sm">
                       <Clock3 size={21} />
                     </div>
+
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-stone-900">
                         {formatCount(stats.draft)} sản phẩm chờ xuất bản
                       </p>
+
                       <p className="mt-1 text-xs leading-5 text-stone-600">
                         Mở danh sách sản phẩm để kiểm tra thông tin và thực hiện
                         xuất bản theo quy trình hiện tại.
                       </p>
                     </div>
+
                     <Link
                       to="/products"
                       className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-white transition hover:opacity-90"
@@ -398,9 +576,11 @@ export function DashboardPage() {
                       className="mx-auto text-emerald-700"
                       size={25}
                     />
+
                     <p className="mt-2 text-sm font-semibold text-stone-800">
                       Không có sản phẩm chờ xuất bản
                     </p>
+
                     <p className="mt-1 text-xs text-stone-500">
                       Khi có sản phẩm draft, chúng sẽ được hiển thị tại đây.
                     </p>
@@ -409,10 +589,12 @@ export function DashboardPage() {
               </div>
             </section>
 
+            {/* Quick Actions */}
             <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
               <h2 className="text-sm font-bold text-stone-900">
                 Thao tác nhanh
               </h2>
+
               <p className="mt-1 text-xs leading-5 text-stone-500">
                 Truy cập các công việc quản lý thường dùng.
               </p>
@@ -425,14 +607,17 @@ export function DashboardPage() {
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-red-50 text-[#c92830]">
                     <PackagePlus size={19} />
                   </span>
+
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-stone-800">
                       Thêm sản phẩm
                     </span>
+
                     <span className="mt-1 block text-xs text-stone-500">
                       Mở trang quản lý sản phẩm
                     </span>
                   </span>
+
                   <ArrowRight
                     size={15}
                     className="text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-[#c92830]"
@@ -446,14 +631,17 @@ export function DashboardPage() {
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-600">
                     <Package size={19} />
                   </span>
+
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-stone-800">
                       Quản lý sản phẩm
                     </span>
+
                     <span className="mt-1 block text-xs text-stone-500">
                       Tìm kiếm, chỉnh sửa và xuất bản
                     </span>
                   </span>
+
                   <ArrowRight
                     size={15}
                     className="text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-[#c92830]"
@@ -467,14 +655,17 @@ export function DashboardPage() {
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-600">
                     <Package size={19} />
                   </span>
+
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-stone-800">
                       Danh mục & Phân loại
                     </span>
+
                     <span className="mt-1 block text-xs text-stone-500">
                       Quản lý danh mục, màu và nhãn
                     </span>
                   </span>
+
                   <ArrowRight
                     size={15}
                     className="text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-[#c92830]"
@@ -487,9 +678,11 @@ export function DashboardPage() {
       ) : (
         <div className="rounded-2xl border border-stone-200 bg-white px-4 py-10 text-center">
           <Package className="mx-auto text-stone-300" size={28} />
+
           <p className="mt-3 text-sm font-semibold text-stone-700">
             Chưa có số liệu để hiển thị
           </p>
+
           <p className="mt-1 text-xs text-stone-500">
             Tải lại dữ liệu để thử lại.
           </p>

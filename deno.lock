@@ -1,0 +1,26 @@
+{
+  "version": "5",
+  "remote": {
+    "https://raw.githubusercontent.com/daaku/webpush-js/main/mod.ts": "50b9f089d8cec8c777b02503f46b8f8404c033671509a452103e5d09ca3a46fa"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@supabase/supabase-js@^2.57.0",
+        "npm:@tailwindcss/vite@^4.1.14",
+        "npm:@tanstack/react-query@^5.104.5",
+        "npm:@types/react-dom@^18.3.1",
+        "npm:@types/react@^18.3.12",
+        "npm:@vitejs/plugin-react@^4.3.4",
+        "npm:lucide-react@0.468",
+        "npm:react-dom@^18.3.1",
+        "npm:react-router-dom@^6.28.0",
+        "npm:react@^18.3.1",
+        "npm:supabase@3",
+        "npm:tailwindcss@^4.1.14",
+        "npm:typescript@~5.6.3",
+        "npm:vite@^5.4.11"
+      ]
+    }
+  }
+}
