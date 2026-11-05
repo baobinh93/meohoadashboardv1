@@ -7,7 +7,7 @@ export type PushSubscriptionStatus = {
   subscribed: boolean;
 };
 
-function getApplicationServerKey(): Uint8Array<ArrayBuffer> {
+function getApplicationServerKey(): ArrayBuffer {
   const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
   if (!publicKey) {
@@ -24,7 +24,7 @@ function getApplicationServerKey(): Uint8Array<ArrayBuffer> {
     bytes[i] = binary.charCodeAt(i);
   }
 
-  return bytes;
+  return bytes.buffer as ArrayBuffer;
 }
 
 export function getPushSupport(): PushSubscriptionStatus {
