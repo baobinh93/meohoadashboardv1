@@ -7,7 +7,7 @@ export type PushSubscriptionStatus = {
   subscribed: boolean;
 };
 
-function getApplicationServerKey(): Uint8Array {
+function getApplicationServerKey(): Uint8Array<ArrayBuffer> {
   const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
   if (!publicKey) {
@@ -15,16 +15,16 @@ function getApplicationServerKey(): Uint8Array {
   }
 
   const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
-  const base64 = publicKey
-    .replace(/-/g, "+")
-    .replace(/_/g, "/") + padding;
-
+  const base64 = publicKey.replace(/-/g, "+").replace(/_/g, "/") + padding;
   const binary = atob(base64);
 
-  return Uint8Array.from(
-    binary,
-    (char) => char.charCodeAt(0),
-  );
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
 }
 
 export function getPushSupport(): PushSubscriptionStatus {
