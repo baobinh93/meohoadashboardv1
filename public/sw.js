@@ -19,6 +19,20 @@ function openBadgeDB() {
   });
 }
 
+async function setSystemBadge(count) {
+  try {
+    if (count > 0 && self.navigator.setAppBadge) {
+      await self.navigator.setAppBadge(count);
+    } else if (count === 0 && self.navigator.clearAppBadge) {
+      await self.navigator.clearAppBadge();
+    } else {
+      console.warn("[Push Badge] Badging API không được hỗ trợ.");
+    }
+  } catch (error) {
+    console.error("[Push Badge] Không thể cập nhật badge:", error);
+  }
+}
+
 async function updateBadgeCount(increment = false) {
   const db = await openBadgeDB();
 
@@ -33,6 +47,7 @@ async function updateBadgeCount(increment = false) {
     });
 
     const next = increment ? current + 1 : 0;
+
     store.put(next, BADGE_KEY);
 
     await new Promise((resolve, reject) => {
@@ -41,11 +56,7 @@ async function updateBadgeCount(increment = false) {
       transaction.onabort = () => reject(transaction.error);
     });
 
-    if (next > 0 && self.registration.setAppBadge) {
-      await self.registration.setAppBadge(next);
-    } else if (self.registration.clearAppBadge) {
-      await self.registration.clearAppBadge();
-    }
+    await setSystemBadge(next);
 
     return next;
   } finally {
@@ -67,6 +78,7 @@ async function notifyOpenClients(count) {
   }
 }
 
+// Nhận Push mới.
 self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
@@ -83,7 +95,7 @@ self.addEventListener("push", (event) => {
       const title = data.title || "Mèo Hoa Admin";
 
       const options = {
-        body: data.body || "Bạn có đơn hàng mới cần xử lý.",
+        body: data.body || "Bạn có đơn hàng mới.",
         icon: "/admin-phone-logo.png",
         badge: "/admin-phone-logo.png",
         data: {
@@ -91,14 +103,22 @@ self.addEventListener("push", (event) => {
         },
       };
 
-      const count = await updateBadgeCount(true);
+      let count = 0;
 
+      try {
+        count = await updateBadgeCount(true);
+        await notifyOpenClients(count);
+      } catch (error) {
+        console.error("[Push Badge] Lỗi cập nhật số lượng:", error);
+      }
+
+      // Luôn hiển thị thông báo kể cả khi badge gặp lỗi.
       await self.registration.showNotification(title, options);
-      await notifyOpenClients(count);
     })(),
   );
 });
 
+// Nhấn vào thông báo.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
@@ -125,19 +145,34 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Nhận yêu cầu xóa badge từ ứng dụng khi Admin vào /orders.
+// Nhận yêu cầu xóa badge khi Admin vào /orders.
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "CLEAR_PUSH_BADGE") return;
 
   event.waitUntil(
     (async () => {
-      const count = await updateBadgeCount(false);
-      await notifyOpenClients(count);
+      try {
+        const count = await updateBadgeCount(false);
+        await notifyOpenClients(count);
 
-      event.ports?.[0]?.postMessage({
-        type: "PUSH_BADGE_CLEARED",
-        count,
-      });
+        const response = {
+          type: "PUSH_BADGE_CLEARED",
+          count,
+        };
+
+        if (event.ports?.[0]) {
+          event.ports[0].postMessage(response);
+        } else {
+          event.source?.postMessage(response);
+        }
+      } catch (error) {
+        console.error("[Push Badge] Không thể xóa badge:", error);
+
+        event.ports?.[0]?.postMessage({
+          type: "PUSH_BADGE_CLEAR_FAILED",
+          message: String(error),
+        });
+      }
     })(),
   );
 });
