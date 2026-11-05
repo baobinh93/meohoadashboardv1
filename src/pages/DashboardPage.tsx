@@ -95,6 +95,24 @@ function StatCard({
 
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+      <button
+        onClick={async () => {
+          try {
+            if (!("setAppBadge" in navigator)) {
+              alert("Thiết bị không hỗ trợ App Badge API");
+              return;
+            }
+
+            await navigator.setAppBadge(7);
+            alert("Đã gửi lệnh đặt badge số 7");
+          } catch (error) {
+            console.error("[Badge Test]", error);
+            alert("Không thể đặt badge: " + String(error));
+          }
+        }}
+      >
+        Test App Badge
+      </button>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-stone-500">{label}</p>
